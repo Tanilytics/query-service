@@ -1,0 +1,66 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: query-service
+
+  # Redis
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+  # Cache (Redis-backed)
+  cache:
+    type: redis
+    redis:
+      time-to-live: 60000       # 60 s default TTL
+      cache-null-values: false
+
+  # Security – disable session (stateless JWT)
+  security:
+    user:
+      name: ignored
+
+# ClickHouse JDBC
+clickhouse:
+  url: ${CLICKHOUSE_URL:jdbc:ch://localhost:8123/analytics}
+  username: ${CLICKHOUSE_USER:default}
+  password: ${CLICKHOUSE_PASSWORD:}
+
+# JWT (must match auth-service secret)
+jwt:
+  secret: ${JWT_SECRET:change-me-in-production-use-at-least-256-bits}
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# OpenTelemetry (picked up by -javaagent at runtime)
+otel:
+  service:
+    name: query-service
+  exporter:
+    otlp:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
+
+# Logging
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} traceId=%X{traceId} - %msg%n"
+  level:
+    root: INFO
+    com.tanalytics: DEBUG
+
