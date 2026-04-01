@@ -1,0 +1,11 @@
+spring:
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:redis}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+
+clickhouse:
+  url: ${CLICKHOUSE_URL:jdbc:clickhouse://clickhouse:8123/analytics}
+  username: ${CLICKHOUSE_USERNAME:analytics}
+  password: ${CLICKHOUSE_PASSWORD:analytics}
+

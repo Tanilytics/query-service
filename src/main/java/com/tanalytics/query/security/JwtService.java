@@ -8,7 +8,9 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Validates JWT tokens issued by auth-service.
@@ -35,13 +37,25 @@ public class JwtService {
         return parseToken(token).getSubject();
     }
 
-    @SuppressWarnings("unchecked")
-    public List<String> extractRoles(String token) {
-        Object roles = parseToken(token).get("roles");
-        if (roles instanceof List<?> list) {
-            return list.stream().map(Object::toString).toList();
+    public Optional<String> extractRole(String token) {
+        String role = parseToken(token).get("role", String.class);
+        return Optional.ofNullable(role);
+    }
+
+    public List<String> extractSiteIds(String token) {
+        Object siteIds = parseToken(token).get("siteIds");
+        if (siteIds instanceof List<?> list) {
+            List<String> values = new ArrayList<>();
+            for (Object item : list) {
+                values.add(String.valueOf(item));
+            }
+            return values;
         }
         return List.of();
+    }
+
+    public boolean isAccessToken(String token) {
+        return "access".equals(parseToken(token).get("type", String.class));
     }
 
     public boolean isTokenValid(String token) {

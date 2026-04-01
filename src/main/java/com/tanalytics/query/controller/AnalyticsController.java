@@ -11,6 +11,8 @@ import com.tanalytics.query.service.AnalyticsQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -96,17 +98,29 @@ public class AnalyticsController {
     }
 
     @GetMapping("/funnels")
-    @Operation(summary = "Funnel analysis results (Phase 4 – returns empty list until implemented)")
-    public ResponseEntity<List<Object>> getFunnels(@PathVariable String siteId) {
-        // TODO: implement funnel engine in Phase 4
-        return ResponseEntity.ok(List.of());
+    @Operation(summary = "Funnel analysis results (Phase 4 – not implemented in Phase 3)")
+    public ResponseEntity<ProblemDetail> getFunnels(@PathVariable String siteId) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_IMPLEMENTED,
+                "Funnels endpoint is planned for Phase 4 and is not available in Phase 3."
+        );
+        detail.setTitle("Feature not implemented");
+        detail.setProperty("feature", "funnels");
+        detail.setProperty("targetPhase", "4");
+        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(detail);
     }
 
     @GetMapping("/heatmaps")
-    @Operation(summary = "Click heatmap data (Phase 4 – returns empty list until implemented)")
-    public ResponseEntity<List<Object>> getHeatmaps(@PathVariable String siteId) {
-        // TODO: implement heatmap engine in Phase 4
-        return ResponseEntity.ok(List.of());
+    @Operation(summary = "Click heatmap data (Phase 4 – not implemented in Phase 3)")
+    public ResponseEntity<ProblemDetail> getHeatmaps(@PathVariable String siteId) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_IMPLEMENTED,
+                "Heatmaps endpoint is planned for Phase 4 and is not available in Phase 3."
+        );
+        detail.setTitle("Feature not implemented");
+        detail.setProperty("feature", "heatmaps");
+        detail.setProperty("targetPhase", "4");
+        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(detail);
     }
 }
 

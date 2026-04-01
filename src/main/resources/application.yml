@@ -43,9 +43,9 @@ management:
   endpoint:
     health:
       show-details: always
-  metrics:
-    export:
-      prometheus:
+  prometheus:
+    metrics:
+      export:
         enabled: true
 
 # OpenTelemetry (picked up by -javaagent at runtime)
