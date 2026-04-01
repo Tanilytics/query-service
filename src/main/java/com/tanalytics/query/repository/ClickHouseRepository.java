@@ -9,8 +9,9 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -21,6 +22,9 @@ import java.util.List;
  */
 @Repository
 public class ClickHouseRepository {
+
+    private static final DateTimeFormatter CLICKHOUSE_DT_FMT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC);
 
     private final JdbcTemplate jdbc;
 
@@ -48,7 +52,7 @@ public class ClickHouseRepository {
                 rs.getLong("unique_sessions"),
                 0.0,   // bounce rate requires session-level data – computed separately
                 0.0    // avg session duration – computed separately
-        ), siteId, Timestamp.from(start), Timestamp.from(end));
+        ), siteId, toClickHouseDateTime(start), toClickHouseDateTime(end));
     }
 
     public AggregateStats queryAggregateFromRaw(String siteId, Instant start, Instant end) {
@@ -67,7 +71,7 @@ public class ClickHouseRepository {
                 rs.getLong("unique_sessions"),
                 0.0,
                 0.0
-        ), siteId, Timestamp.from(start), Timestamp.from(end));
+        ), siteId, toClickHouseDateTime(start), toClickHouseDateTime(end));
     }
 
     // -------------------------------------------------------------------------
@@ -94,7 +98,7 @@ public class ClickHouseRepository {
                 rs.getLong("unique_visitors"),
                 rs.getLong("unique_sessions"),
                 0.0
-        ), siteId, Timestamp.from(start), Timestamp.from(end), limit);
+        ), siteId, toClickHouseDateTime(start), toClickHouseDateTime(end), limit);
     }
 
     // -------------------------------------------------------------------------
@@ -119,7 +123,7 @@ public class ClickHouseRepository {
                 rs.getString("referrer"),
                 rs.getLong("visits"),
                 rs.getLong("unique_visitors")
-        ), siteId, Timestamp.from(start), Timestamp.from(end), limit);
+        ), siteId, toClickHouseDateTime(start), toClickHouseDateTime(end), limit);
     }
 
     // -------------------------------------------------------------------------
@@ -142,7 +146,7 @@ public class ClickHouseRepository {
                 rs.getTimestamp("bucket").toInstant(),
                 rs.getLong("page_views"),
                 rs.getLong("unique_visitors")
-        ), siteId, Timestamp.from(start), Timestamp.from(end));
+        ), siteId, toClickHouseDateTime(start), toClickHouseDateTime(end));
     }
 
     // -------------------------------------------------------------------------
@@ -172,7 +176,11 @@ public class ClickHouseRepository {
                 rs.getLong("completions"),
                 rs.getLong("unique_viewers"),
                 rs.getDouble("avg_completion_rate")
-        ), siteId, Timestamp.from(start), Timestamp.from(end), limit);
+        ), siteId, toClickHouseDateTime(start), toClickHouseDateTime(end), limit);
+    }
+
+    private String toClickHouseDateTime(Instant value) {
+        return CLICKHOUSE_DT_FMT.format(value);
     }
 }
 

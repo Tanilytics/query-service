@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Validates JWT tokens issued by auth-service.
@@ -35,6 +36,14 @@ public class JwtService {
 
     public String extractSubject(String token) {
         return parseToken(token).getSubject();
+    }
+
+    public Optional<UUID> extractUserId(String token) {
+        try {
+            return Optional.of(UUID.fromString(extractSubject(token)));
+        } catch (Exception ex) {
+            return Optional.empty();
+        }
     }
 
     public Optional<String> extractRole(String token) {

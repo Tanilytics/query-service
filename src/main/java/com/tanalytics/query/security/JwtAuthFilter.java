@@ -1,9 +1,13 @@
 package com.tanalytics.query.security;
 
+import com.tanalytics.query.auth.InternalAuthClient;
+import com.tanalytics.query.auth.InternalAuthUnavailableException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -16,6 +20,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Extracts a Bearer JWT from the Authorization header, validates it,
@@ -24,10 +29,14 @@ import java.util.Optional;
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
-    private final JwtService jwtService;
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthFilter.class);
 
-    public JwtAuthFilter(JwtService jwtService) {
+    private final JwtService jwtService;
+    private final InternalAuthClient internalAuthClient;
+
+    public JwtAuthFilter(JwtService jwtService, InternalAuthClient internalAuthClient) {
         this.jwtService = jwtService;
+        this.internalAuthClient = internalAuthClient;
     }
 
     @Override
@@ -49,12 +58,35 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        Optional<String> requestedSiteId = extractRequestedSiteId(request.getRequestURI());
+        if (request.getRequestURI().startsWith("/api/v1/sites/")
+                && extractRequestedSiteId(request.getRequestURI()).isEmpty()) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid site identifier");
+            return;
+        }
+
+        Optional<UUID> requestedSiteId = extractRequestedSiteId(request.getRequestURI());
         if (requestedSiteId.isPresent()) {
-            List<String> allowedSiteIds = jwtService.extractSiteIds(token);
-            if (!containsSiteId(allowedSiteIds, requestedSiteId.get())) {
-                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Forbidden for requested site");
+            Optional<UUID> userId = jwtService.extractUserId(token);
+            if (userId.isEmpty()) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid token subject");
                 return;
+            }
+
+            try {
+                boolean member = internalAuthClient.isMember(requestedSiteId.get(), userId.get());
+                if (!member) {
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN, "Forbidden for requested site");
+                    return;
+                }
+            } catch (InternalAuthUnavailableException ex) {
+                response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "Unable to verify site membership");
+                return;
+            }
+
+            List<String> claimedSiteIds = jwtService.extractSiteIds(token);
+            if (!claimedSiteIds.isEmpty() && !containsSiteId(claimedSiteIds, requestedSiteId.get().toString())) {
+                log.debug("Token siteIds mismatch for userId={} siteId={} claimCount={} but membership check passed",
+                        userId.get(), requestedSiteId.get(), claimedSiteIds.size());
             }
         }
 
@@ -70,7 +102,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private Optional<String> extractRequestedSiteId(String requestUri) {
+    private Optional<UUID> extractRequestedSiteId(String requestUri) {
         String prefix = "/api/v1/sites/";
         if (!requestUri.startsWith(prefix)) {
             return Optional.empty();
@@ -82,7 +114,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return Optional.empty();
         }
 
-        return Optional.of(remainder.substring(0, slashIndex));
+        try {
+            return Optional.of(UUID.fromString(remainder.substring(0, slashIndex)));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
     }
 
     private boolean containsSiteId(List<String> allowedSiteIds, String requestedSiteId) {
