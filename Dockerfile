@@ -5,7 +5,7 @@ WORKDIR /app
 # Copy Maven wrapper and pom first (layer caching)
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
-RUN ./mvnw dependency:resolve -B -q
+RUN chmod +x mvnw && ./mvnw dependency:resolve -B -q
 
 # Build
 COPY src/ src/
@@ -30,4 +30,3 @@ ENTRYPOINT ["java", \
   "-XX:MaxRAMPercentage=75.0", \
   "-Djava.security.egd=file:/dev/./urandom", \
   "-jar", "app.jar"]
-
