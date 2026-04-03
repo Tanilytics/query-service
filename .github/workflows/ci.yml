@@ -1,0 +1,129 @@
+name: QueryService CI pipeline
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    name: Compile project
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Give execute permission to mvnw
+        run: chmod +x mvnw
+      - name: Compile project
+        run: ./mvnw clean compile
+ # test:
+ #   runs-on: ubuntu-latest
+ #   name: Test app
+ #   steps:
+ #     - name: Checkout code
+ #       uses: actions/checkout@v4
+ #       with:
+ #         fetch-depth: 0
+ #     - name: Setup JDK
+ #       uses: actions/setup-java@v4
+ #       with:
+ #         java-version: '21'
+ #         distribution: 'temurin'
+ #     - name: Cache Maven packages
+ #       uses: actions/cache@v4
+ #       with:
+ #         path: ~/.m2/repository
+ #         key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+ #         restore-keys: |
+ #           ${{ runner.os }}-maven-
+ #     - name: Give execute permission to mvnw
+ #       run: chmod +x mvnw
+ #     - name: Run Tests
+ #       run: ./mvnw clean test
+ #     - name: Upload test report
+ #       uses: actions/upload-artifact@v4
+ #       with:
+ #         name: test-results
+ #         path: target/surefire-reports
+  build:
+    runs-on: ubuntu-latest
+    name: Build app
+    needs: [compile] # add test after tests have been added
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Give execute permission to mvnw
+        run: chmod +x mvnw
+      - name: Build project
+        run: ./mvnw clean package
+  build-docker-image:
+    runs-on: ubuntu-latest
+    name: Build docker image
+    needs: [ build ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Give execute permission to mvnw
+        run: chmod +x mvnw
+      - name: Extract project version
+        id: extract_version
+        run: echo "VERSION=$(./mvnw -q -Dexec.executable='echo' -Dexec.args='${project.version}' --non-recursive exec:exec)" >> $GITHUB_OUTPUT
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and Push to Docker Hub
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/query-service:${{steps.extract_version.outputs.VERSION}}
+            ${{ secrets.DOCKERHUB_USERNAME }}/query-service:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/query-service:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/query-service:buildcache,mode=max
+
