@@ -15,12 +15,13 @@
     <artifactId>query-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>query-service</name>
-    <description>Analytics Query Service – routes queries to Redis, ClickHouse MVs, or raw events</description>
+    <description>Analytics Query Service – routes queries to Redis and HDFS/Parquet via DuckDB</description>
 
     <properties>
         <java.version>21</java.version>
         <springdoc.version>2.5.0</springdoc.version>
-        <clickhouse-jdbc.version>0.6.3</clickhouse-jdbc.version>
+        <duckdb-jdbc.version>1.3.2.1</duckdb-jdbc.version>
+        <hadoop.version>3.4.1</hadoop.version>
         <otel-agent.version>2.4.0</otel-agent.version>
     </properties>
 
@@ -62,33 +63,48 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- JSR310 datatype for Java 8 time serialization in Redis cache -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
         <!-- Cache abstraction (backed by Redis) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-cache</artifactId>
         </dependency>
 
-        <!-- ClickHouse JDBC -->
+        <!-- DuckDB JDBC – can query Parquet files directly via SQL -->
         <dependency>
-            <groupId>com.clickhouse</groupId>
-            <artifactId>clickhouse-jdbc</artifactId>
-            <version>${clickhouse-jdbc.version}</version>
-            <classifier>http</classifier>
+            <groupId>org.duckdb</groupId>
+            <artifactId>duckdb_jdbc</artifactId>
+            <version>${duckdb-jdbc.version}</version>
+        </dependency>
+
+        <!-- Hadoop HDFS Client – to list/access Parquet files on HDFS -->
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-hdfs-client</artifactId>
+            <version>${hadoop.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-common</artifactId>
+            <version>${hadoop.version}</version>
             <exclusions>
                 <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-reload4j</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>javax.servlet</groupId>
+                    <artifactId>servlet-api</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- ClickHouse JDBC transitive deps (http client) -->
-        <dependency>
-            <groupId>org.apache.httpcomponents.client5</groupId>
-            <artifactId>httpclient5</artifactId>
-        </dependency>
 
-        <!-- Spring JDBC (JdbcTemplate) – not pulled in transitively because
-             the clickhouse-jdbc:http classifier excludes all transitive deps -->
+        <!-- Spring JDBC (JdbcTemplate for DuckDB) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>

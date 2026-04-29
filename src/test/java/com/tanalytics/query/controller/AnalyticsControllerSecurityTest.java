@@ -127,7 +127,7 @@ class AnalyticsControllerSecurityTest {
             void returnsServiceUnavailableWhenAnalyticsStoreFails() throws Exception {
             when(internalAuthClient.isMember(UUID.fromString(SITE_A), UUID.fromString(USER_ID))).thenReturn(true);
             when(analyticsQueryService.getAggregateStats(any(), any()))
-                .thenThrow(new DataAccessResourceFailureException("clickhouse unavailable"));
+                .thenThrow(new DataAccessResourceFailureException("hdfs/parquet unavailable"));
 
             String from = Instant.now().minusSeconds(3600).toString();
             String to = Instant.now().toString();

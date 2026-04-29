@@ -4,8 +4,16 @@ spring:
       host: ${SPRING_DATA_REDIS_HOST:redis}
       port: ${SPRING_DATA_REDIS_PORT:6379}
 
-clickhouse:
-  url: ${CLICKHOUSE_URL:jdbc:clickhouse://clickhouse:8123/analytics}
-  username: ${CLICKHOUSE_USERNAME:analytics}
-  password: ${CLICKHOUSE_PASSWORD:analytics}
+auth:
+  service:
+    base-url: ${AUTH_SERVICE_URL:http://auth-service:8082}
+    timeout-ms: ${AUTH_SERVICE_TIMEOUT_MS:1500}
+    internal-audience: ${JWT_INTERNAL_AUDIENCE:auth-internal}
+    internal-service-name: ${INTERNAL_SERVICE_NAME:query-service}
+    service-token-expiry-seconds: ${AUTH_SERVICE_TOKEN_EXPIRY_SECONDS:60}
+
+hdfs:
+  namenode: ${HDFS_NAMENODE:hdfs://namenode:9000}
+  user: ${HDFS_USER:root}
+  base-path: ${HDFS_BASE_PATH:/analytics/events}
 

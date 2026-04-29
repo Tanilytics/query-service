@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile for query-service
-FROM eclipse-temurin:21-jdk-alpine AS builder
+FROM eclipse-temurin:21-jdk AS builder
 WORKDIR /app
 
 # Copy Maven wrapper and pom first (layer caching)
@@ -12,11 +12,11 @@ COPY src/ src/
 RUN ./mvnw package -DskipTests -B -q
 
 # ---- Runtime image ----
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 
-# Non-root user
-RUN addgroup -S tanalytics && adduser -S tanalytics -G tanalytics
+# Non-root user (Debian uses adduser/groupadd differently than Alpine)
+RUN groupadd -r tanalytics && useradd -r -g tanalytics tanalytics
 USER tanalytics
 
 COPY --from=builder /app/target/*.jar app.jar

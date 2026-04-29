@@ -7,7 +7,7 @@ import com.tanalytics.query.model.RealtimeStats;
 import com.tanalytics.query.model.ReferrerStats;
 import com.tanalytics.query.model.TimeRange;
 import com.tanalytics.query.model.TimeSeriesPoint;
-import com.tanalytics.query.repository.ClickHouseRepository;
+import com.tanalytics.query.repository.HdfsParquetRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
@@ -22,8 +22,7 @@ import java.util.List;
 /**
  * Core query service that routes analytics queries to the appropriate backend:
  *  - Redis real-time counters  → last 5 minutes
- *  - ClickHouse materialized views → last 24 hours
- *  - ClickHouse raw events         → arbitrary date ranges
+ *  - HDFS/Parquet via DuckDB   → arbitrary date ranges
  */
 @Service
 public class AnalyticsQueryService {
@@ -32,12 +31,12 @@ public class AnalyticsQueryService {
     private static final DateTimeFormatter HOUR_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd-HH").withZone(ZoneOffset.UTC);
 
-    private final ClickHouseRepository clickHouseRepo;
+    private final HdfsParquetRepository hdfsParquetRepo;
     private final RedisTemplate<String, Object> redis;
 
-    public AnalyticsQueryService(ClickHouseRepository clickHouseRepo,
+    public AnalyticsQueryService(HdfsParquetRepository hdfsParquetRepo,
                                  RedisTemplate<String, Object> redis) {
-        this.clickHouseRepo = clickHouseRepo;
+        this.hdfsParquetRepo = hdfsParquetRepo;
         this.redis = redis;
     }
 
@@ -73,12 +72,8 @@ public class AnalyticsQueryService {
 
     @Cacheable(value = "stats", key = "#siteId + '_' + #timeRange.start() + '_' + #timeRange.end()")
     public AggregateStats getAggregateStats(String siteId, TimeRange timeRange) {
-        if (timeRange.isWithinHours(24)) {
-            log.debug("Routing aggregate query for site={} to ClickHouse MVs", siteId);
-            return clickHouseRepo.queryAggregateFromMV(siteId, timeRange.start(), timeRange.end());
-        }
-        log.debug("Routing aggregate query for site={} to raw ClickHouse events", siteId);
-        return clickHouseRepo.queryAggregateFromRaw(siteId, timeRange.start(), timeRange.end());
+        log.debug("Routing aggregate query for site={} to HDFS/Parquet via DuckDB", siteId);
+        return hdfsParquetRepo.queryAggregate(siteId, timeRange.start(), timeRange.end());
     }
 
     // -------------------------------------------------------------------------
@@ -87,7 +82,7 @@ public class AnalyticsQueryService {
 
     @Cacheable(value = "timeseries", key = "#siteId + '_' + #timeRange.start() + '_' + #timeRange.end()")
     public List<TimeSeriesPoint> getTimeSeries(String siteId, TimeRange timeRange) {
-        return clickHouseRepo.queryTimeSeries(siteId, timeRange.start(), timeRange.end());
+        return hdfsParquetRepo.queryTimeSeries(siteId, timeRange.start(), timeRange.end());
     }
 
     // -------------------------------------------------------------------------
@@ -96,7 +91,7 @@ public class AnalyticsQueryService {
 
     @Cacheable(value = "top-pages", key = "#siteId + '_' + #timeRange.start() + '_' + #timeRange.end() + '_' + #limit")
     public List<PageStats> getTopPages(String siteId, TimeRange timeRange, int limit) {
-        return clickHouseRepo.queryTopPagesFromMV(siteId, timeRange.start(), timeRange.end(), limit);
+        return hdfsParquetRepo.queryTopPages(siteId, timeRange.start(), timeRange.end(), limit);
     }
 
     // -------------------------------------------------------------------------
@@ -105,7 +100,7 @@ public class AnalyticsQueryService {
 
     @Cacheable(value = "referrers", key = "#siteId + '_' + #timeRange.start() + '_' + #timeRange.end() + '_' + #limit")
     public List<ReferrerStats> getTopReferrers(String siteId, TimeRange timeRange, int limit) {
-        return clickHouseRepo.queryTopReferrers(siteId, timeRange.start(), timeRange.end(), limit);
+        return hdfsParquetRepo.queryTopReferrers(siteId, timeRange.start(), timeRange.end(), limit);
     }
 
     // -------------------------------------------------------------------------
@@ -114,7 +109,7 @@ public class AnalyticsQueryService {
 
     @Cacheable(value = "media", key = "#siteId + '_' + #timeRange.start() + '_' + #timeRange.end() + '_' + #limit")
     public List<MediaStats> getMediaStats(String siteId, TimeRange timeRange, int limit) {
-        return clickHouseRepo.queryMediaStats(siteId, timeRange.start(), timeRange.end(), limit);
+        return hdfsParquetRepo.queryMediaStats(siteId, timeRange.start(), timeRange.end(), limit);
     }
 
     // -------------------------------------------------------------------------

@@ -24,11 +24,11 @@ spring:
     user:
       name: ignored
 
-# ClickHouse JDBC
-clickhouse:
-  url: ${CLICKHOUSE_URL:jdbc:ch://localhost:8123/analytics}
-  username: ${CLICKHOUSE_USER:default}
-  password: ${CLICKHOUSE_PASSWORD:}
+# HDFS / Parquet (DuckDB queries)
+hdfs:
+  namenode: ${HDFS_NAMENODE:hdfs://localhost:9000}
+  user: ${HDFS_USER:root}
+  base-path: ${HDFS_BASE_PATH:/analytics/events}
 
 # JWT (must match auth-service secret)
 jwt:
