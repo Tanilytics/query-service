@@ -16,9 +16,10 @@ import java.util.List;
 
 /**
  * Raw JDBC queries against ClickHouse.
- * Uses the materialized views (page_views_hourly, media_engagement_hourly)
- * for pre-aggregated queries and falls back to the raw events table for
- * custom date ranges outside the last 24 hours.
+ * Uses the materialized views (site_metrics_hourly, page_views_hourly,
+ * referrers_daily) for pre-aggregated queries and falls back to the raw
+ * events table for custom date ranges or tables that don't have MVs
+ * (media engagement).
  */
 @Repository
 public class ClickHouseRepository {
@@ -39,10 +40,10 @@ public class ClickHouseRepository {
     public AggregateStats queryAggregateFromMV(String siteId, Instant start, Instant end) {
         String sql = """
                 SELECT
-                    sum(views)             AS page_views,
+                    sum(page_views)        AS page_views,
                     sum(unique_visitors)   AS unique_visitors,
                     sum(unique_sessions)   AS unique_sessions
-                FROM page_views_hourly
+                FROM analytics.site_metrics_hourly
                 WHERE site_id = ?
                   AND hour BETWEEN ? AND ?
                 """;
@@ -50,8 +51,8 @@ public class ClickHouseRepository {
                 rs.getLong("page_views"),
                 rs.getLong("unique_visitors"),
                 rs.getLong("unique_sessions"),
-                0.0,   // bounce rate requires session-level data – computed separately
-                0.0    // avg session duration – computed separately
+                0.0,
+                0.0
         ), siteId, toClickHouseDateTime(start), toClickHouseDateTime(end));
     }
 
@@ -61,7 +62,7 @@ public class ClickHouseRepository {
                     countIf(event_type = 'page_view')    AS page_views,
                     uniq(visitor_id)                     AS unique_visitors,
                     uniq(session_id)                     AS unique_sessions
-                FROM events
+                FROM analytics.events
                 WHERE site_id = ?
                   AND timestamp BETWEEN ? AND ?
                 """;
@@ -85,7 +86,7 @@ public class ClickHouseRepository {
                     sum(views)           AS views,
                     sum(unique_visitors) AS unique_visitors,
                     sum(unique_sessions) AS unique_sessions
-                FROM page_views_hourly
+                FROM analytics.page_views_hourly
                 WHERE site_id = ?
                   AND hour BETWEEN ? AND ?
                 GROUP BY url
@@ -111,10 +112,10 @@ public class ClickHouseRepository {
                     referrer,
                     sum(views)           AS visits,
                     sum(unique_visitors) AS unique_visitors
-                FROM page_views_hourly
+                FROM analytics.referrers_daily
                 WHERE site_id = ?
-                  AND hour BETWEEN ? AND ?
-                  AND referrer != ''
+                  AND day BETWEEN ? AND ?
+                  AND referrer != 'direct'
                 GROUP BY referrer
                 ORDER BY visits DESC
                 LIMIT ?
@@ -123,7 +124,7 @@ public class ClickHouseRepository {
                 rs.getString("referrer"),
                 rs.getLong("visits"),
                 rs.getLong("unique_visitors")
-        ), siteId, toClickHouseDateTime(start), toClickHouseDateTime(end), limit);
+        ), siteId, toClickHouseDate(start), toClickHouseDate(end), limit);
     }
 
     // -------------------------------------------------------------------------
@@ -134,9 +135,9 @@ public class ClickHouseRepository {
         String sql = """
                 SELECT
                     hour                 AS bucket,
-                    sum(views)           AS page_views,
+                    sum(page_views)      AS page_views,
                     sum(unique_visitors) AS unique_visitors
-                FROM page_views_hourly
+                FROM analytics.site_metrics_hourly
                 WHERE site_id = ?
                   AND hour BETWEEN ? AND ?
                 GROUP BY hour
@@ -150,21 +151,22 @@ public class ClickHouseRepository {
     }
 
     // -------------------------------------------------------------------------
-    // Media engagement
+    // Media engagement (no MV exists yet — queries raw events)
     // -------------------------------------------------------------------------
 
     public List<MediaStats> queryMediaStats(String siteId, Instant start, Instant end, int limit) {
         String sql = """
                 SELECT
-                    media_url,
-                    media_type,
-                    sum(plays)                AS plays,
-                    sum(completions)          AS completions,
-                    sum(unique_viewers)       AS unique_viewers,
-                    avg(avg_completion_rate)  AS avg_completion_rate
-                FROM media_engagement_hourly
+                    JSONExtractString(properties, 'video_id') AS media_url,
+                    JSONExtractString(properties, 'provider') AS media_type,
+                    countIf(event_type = 'media_play')        AS plays,
+                    countIf(event_type = 'media_complete')    AS completions,
+                    uniq(visitor_id)                          AS unique_viewers,
+                    avg(toFloat64OrNull(JSONExtractString(properties, 'duration_ms'))) AS avg_completion_rate
+                FROM analytics.events
                 WHERE site_id = ?
-                  AND hour BETWEEN ? AND ?
+                  AND timestamp BETWEEN ? AND ?
+                  AND event_type IN ('media_play', 'media_complete')
                 GROUP BY media_url, media_type
                 ORDER BY plays DESC
                 LIMIT ?
@@ -181,6 +183,10 @@ public class ClickHouseRepository {
 
     private String toClickHouseDateTime(Instant value) {
         return CLICKHOUSE_DT_FMT.format(value);
+    }
+
+    private String toClickHouseDate(Instant value) {
+        return DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC).format(value);
     }
 }
 
