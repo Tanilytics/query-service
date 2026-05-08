@@ -1,6 +1,7 @@
 package com.tanalytics.query.controller;
 
 import com.tanalytics.query.model.AggregateStats;
+import com.tanalytics.query.model.BreakdownStats;
 import com.tanalytics.query.model.MediaStats;
 import com.tanalytics.query.model.PageStats;
 import com.tanalytics.query.model.RealtimeStats;
@@ -86,6 +87,18 @@ public class AnalyticsController {
         return ResponseEntity.ok(queryService.getTopReferrers(siteId, new TimeRange(from, to), limit));
     }
 
+    @GetMapping("/breakdown")
+    @Operation(summary = "Country, device, or campaign breakdown from ClickHouse materialized views")
+    public ResponseEntity<List<BreakdownStats>> getBreakdown(
+            @PathVariable String siteId,
+            @RequestParam String breakdownType,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+            @RequestParam(defaultValue = "20") int limit
+    ) {
+        return ResponseEntity.ok(queryService.getBreakdownStats(siteId, new TimeRange(from, to), breakdownType, limit));
+    }
+
     @GetMapping("/media")
     @Operation(summary = "Media engagement metrics")
     public ResponseEntity<List<MediaStats>> getMediaStats(
@@ -123,4 +136,3 @@ public class AnalyticsController {
         return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(detail);
     }
 }
-

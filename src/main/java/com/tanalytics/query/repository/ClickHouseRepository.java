@@ -1,6 +1,8 @@
 package com.tanalytics.query.repository;
 
 import com.tanalytics.query.model.AggregateStats;
+import com.tanalytics.query.model.BreakdownStats;
+import com.tanalytics.query.model.BreakdownType;
 import com.tanalytics.query.model.MediaStats;
 import com.tanalytics.query.model.PageStats;
 import com.tanalytics.query.model.ReferrerStats;
@@ -125,6 +127,68 @@ public class ClickHouseRepository {
                 rs.getLong("visits"),
                 rs.getLong("unique_visitors")
         ), siteId, toClickHouseDate(start), toClickHouseDate(end), limit);
+    }
+
+    // -------------------------------------------------------------------------
+    // Breakdown materialized views
+    // -------------------------------------------------------------------------
+
+    public List<BreakdownStats> queryBreakdownFromHourlyMV(String siteId, Instant start, Instant end, int limit, BreakdownType type) {
+        return queryBreakdownFromMV(siteId, start, end, limit, type, true);
+    }
+
+    public List<BreakdownStats> queryBreakdownFromDailyMV(String siteId, Instant start, Instant end, int limit, BreakdownType type) {
+        return queryBreakdownFromMV(siteId, start, end, limit, type, false);
+    }
+
+    private List<BreakdownStats> queryBreakdownFromMV(String siteId,
+                                                      Instant start,
+                                                      Instant end,
+                                                      int limit,
+                                                      BreakdownType type,
+                                                      boolean hourly) {
+        String table = hourly ? type.hourlyTable() : type.dailyTable();
+        String timeColumn = hourly ? "hour" : "day";
+        String timeStart = hourly ? toClickHouseDateTime(start) : toClickHouseDate(start);
+        String timeEnd = hourly ? toClickHouseDateTime(end) : toClickHouseDate(end);
+        String dimension3Select = type.hasThirdDimension()
+                ? type.dimension3Column() + " AS dimension3"
+                : "CAST(NULL AS Nullable(String)) AS dimension3";
+        String dimension3GroupBy = type.hasThirdDimension() ? ", " + type.dimension3Column() : "";
+
+        String sql = """
+                SELECT
+                    %s AS dimension1,
+                    %s AS dimension2,
+                    %s,
+                    sum(page_views)        AS page_views,
+                    sum(unique_visitors)   AS unique_visitors,
+                    sum(unique_sessions)   AS unique_sessions
+                FROM analytics.%s
+                WHERE site_id = ?
+                  AND %s BETWEEN ? AND ?
+                GROUP BY %s, %s%s
+                ORDER BY page_views DESC
+                LIMIT ?
+                """.formatted(
+                type.dimension1Column(),
+                type.dimension2Column(),
+                dimension3Select,
+                table,
+                timeColumn,
+                type.dimension1Column(),
+                type.dimension2Column(),
+                dimension3GroupBy
+        );
+
+        return jdbc.query(sql, (rs, rowNum) -> new BreakdownStats(
+                rs.getString("dimension1"),
+                rs.getString("dimension2"),
+                rs.getString("dimension3"),
+                rs.getLong("page_views"),
+                rs.getLong("unique_visitors"),
+                rs.getLong("unique_sessions")
+        ), siteId, timeStart, timeEnd, limit);
     }
 
     // -------------------------------------------------------------------------

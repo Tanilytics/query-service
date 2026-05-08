@@ -1,6 +1,8 @@
 package com.tanalytics.query.service;
 
 import com.tanalytics.query.model.AggregateStats;
+import com.tanalytics.query.model.BreakdownStats;
+import com.tanalytics.query.model.BreakdownType;
 import com.tanalytics.query.model.MediaStats;
 import com.tanalytics.query.model.PageStats;
 import com.tanalytics.query.model.RealtimeStats;
@@ -106,6 +108,23 @@ public class AnalyticsQueryService {
     @Cacheable(value = "referrers", key = "#siteId + '_' + #timeRange.start() + '_' + #timeRange.end() + '_' + #limit")
     public List<ReferrerStats> getTopReferrers(String siteId, TimeRange timeRange, int limit) {
         return clickHouseRepo.queryTopReferrers(siteId, timeRange.start(), timeRange.end(), limit);
+    }
+
+    // -------------------------------------------------------------------------
+    // Breakdowns
+    // -------------------------------------------------------------------------
+
+    @Cacheable(value = "breakdowns", key = "#siteId + '_' + #breakdownType + '_' + #timeRange.start() + '_' + #timeRange.end() + '_' + #limit")
+    public List<BreakdownStats> getBreakdownStats(String siteId, TimeRange timeRange, String breakdownType, int limit) {
+        BreakdownType type = BreakdownType.fromValue(breakdownType);
+
+        if (timeRange.isWithinHours(24)) {
+            log.debug("Routing breakdown query for site={} type={} to ClickHouse hourly MVs", siteId, type.value());
+            return clickHouseRepo.queryBreakdownFromHourlyMV(siteId, timeRange.start(), timeRange.end(), limit, type);
+        }
+
+        log.debug("Routing breakdown query for site={} type={} to ClickHouse daily MVs", siteId, type.value());
+        return clickHouseRepo.queryBreakdownFromDailyMV(siteId, timeRange.start(), timeRange.end(), limit, type);
     }
 
     // -------------------------------------------------------------------------

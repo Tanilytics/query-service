@@ -3,7 +3,9 @@ package com.tanalytics.query.controller;
 import com.tanalytics.query.auth.InternalAuthClient;
 import com.tanalytics.query.auth.InternalAuthUnavailableException;
 import com.tanalytics.query.config.SecurityConfig;
+import com.tanalytics.query.model.BreakdownStats;
 import com.tanalytics.query.model.RealtimeStats;
+import com.tanalytics.query.model.TimeRange;
 import com.tanalytics.query.security.JwtAuthFilter;
 import com.tanalytics.query.security.JwtService;
 import com.tanalytics.query.service.AnalyticsQueryService;
@@ -27,6 +29,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -50,12 +53,12 @@ class AnalyticsControllerSecurityTest {
     @MockBean
     private RealtimeStreamService realtimeStreamService;
 
-        @MockBean
-        private InternalAuthClient internalAuthClient;
+    @MockBean
+    private InternalAuthClient internalAuthClient;
 
-        private static final String SITE_A = "11111111-1111-1111-1111-111111111111";
-        private static final String SITE_B = "22222222-2222-2222-2222-222222222222";
-        private static final String USER_ID = "33333333-3333-3333-3333-333333333333";
+    private static final String SITE_A = "11111111-1111-1111-1111-111111111111";
+    private static final String SITE_B = "22222222-2222-2222-2222-222222222222";
+    private static final String USER_ID = "33333333-3333-3333-3333-333333333333";
 
     @Test
     void allowsAccessForAuthorizedSiteId() throws Exception {
@@ -121,6 +124,27 @@ class AnalyticsControllerSecurityTest {
         mockMvc.perform(get("/api/v1/sites/" + SITE_A + "/stats/heatmaps")
                         .header("Authorization", "Bearer " + token("access", "admin", List.of(SITE_A))))
                 .andExpect(status().isNotImplemented());
+    }
+
+    @Test
+    void returnsBreakdownStatsForAuthorizedSiteId() throws Exception {
+        when(internalAuthClient.isMember(UUID.fromString(SITE_A), UUID.fromString(USER_ID))).thenReturn(true);
+        when(analyticsQueryService.getBreakdownStats(eq(SITE_A), any(TimeRange.class), eq("country"), eq(10)))
+                .thenReturn(List.of(new BreakdownStats("US", "CA", null, 12, 10, 8)));
+
+        String from = Instant.now().minusSeconds(3600).toString();
+        String to = Instant.now().toString();
+
+        mockMvc.perform(get("/api/v1/sites/" + SITE_A + "/stats/breakdown")
+                        .param("breakdownType", "country")
+                        .param("from", from)
+                        .param("to", to)
+                        .param("limit", "10")
+                        .header("Authorization", "Bearer " + token("access", "admin", List.of(SITE_A))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].dimension1").value("US"))
+                .andExpect(jsonPath("$[0].dimension2").value("CA"))
+                .andExpect(jsonPath("$[0].pageViews").value(12));
     }
 
             @Test
