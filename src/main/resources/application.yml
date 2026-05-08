@@ -5,6 +5,14 @@ spring:
   application:
     name: query-service
 
+  # CORS
+  web:
+    cors:
+      allowed-origins: "*"
+      allowed-methods: "*"
+      allowed-headers: "*"
+      max-age: 3600
+
   # Redis
   data:
     redis:
