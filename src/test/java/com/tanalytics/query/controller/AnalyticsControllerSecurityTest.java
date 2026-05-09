@@ -3,6 +3,7 @@ package com.tanalytics.query.controller;
 import com.tanalytics.query.auth.InternalAuthClient;
 import com.tanalytics.query.auth.InternalAuthUnavailableException;
 import com.tanalytics.query.config.SecurityConfig;
+import com.tanalytics.query.model.AggregateStats;
 import com.tanalytics.query.model.BreakdownStats;
 import com.tanalytics.query.model.RealtimeStats;
 import com.tanalytics.query.model.TimeRange;
@@ -145,6 +146,25 @@ class AnalyticsControllerSecurityTest {
                 .andExpect(jsonPath("$[0].dimension1").value("US"))
                 .andExpect(jsonPath("$[0].dimension2").value("CA"))
                 .andExpect(jsonPath("$[0].pageViews").value(12));
+    }
+
+    @Test
+    void returnsAggregateStatsForAuthorizedSiteId() throws Exception {
+        when(internalAuthClient.isMember(UUID.fromString(SITE_A), UUID.fromString(USER_ID))).thenReturn(true);
+        when(analyticsQueryService.getAggregateStats(eq(SITE_A), any(TimeRange.class)))
+                .thenReturn(new AggregateStats(42, 21, 11, 0.25, 123.4));
+
+        String from = Instant.now().minusSeconds(3600).toString();
+        String to = Instant.now().toString();
+
+        mockMvc.perform(get("/api/v1/sites/" + SITE_A + "/stats/aggregate")
+                        .param("from", from)
+                        .param("to", to)
+                        .header("Authorization", "Bearer " + token("access", "admin", List.of(SITE_A))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pageViews").value(42))
+                .andExpect(jsonPath("$.uniqueVisitors").value(21))
+                .andExpect(jsonPath("$.avgSessionDurationSeconds").value(123.4));
     }
 
             @Test
